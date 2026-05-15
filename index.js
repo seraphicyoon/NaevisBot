@@ -7,11 +7,18 @@ import {
 } from '@whiskeysockets/baileys';
 import P from 'pino';
 import { Boom } from '@hapi/boom';
+import http from 'http'; // Para mantener vivo Railway
 
-// --- EVITAR QUE EL BOT SE APAGUE POR ERRORES INTERNOS ---
+// --- MANTENER VIVO EL PROCESO ---
+const port = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.write('Naevis is Active');
+  res.end();
+}).listen(port);
+
 process.on('uncaughtException', (err) => {
-    if (err.message.includes('store.get')) return; // Ignorar el error molesto
-    console.error('⚠️ Error no capturado:', err);
+    if (err.message.includes('store.get')) return;
+    console.error('⚠️ Error interno:', err);
 });
 
 async function startNaevis() {
@@ -39,24 +46,17 @@ async function startNaevis() {
         }
     });
 
-    // --- RESPUESTA A MENSAJES (MÁS SENCILLA PARA QUE NO FALLE) ---
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message || m.key.fromMe) return;
-        
         const from = m.key.remoteJid;
         const body = m.message.conversation || m.message.extendedTextMessage?.text || "";
         const text = body.toLowerCase().trim();
         
-        console.log(`📩 Recibido: ${text} de ${from}`);
+        console.log(`📩 Recibido: ${text}`);
 
-        // Responde a .ping y .menu a quien sea, para probar
-        if (text.includes('.ping')) {
-            await sock.sendMessage(from, { text: '✨ *Naevis Online* ✨\n\nJinni, ya te escucho fuerte y claro.' });
-        }
-
-        if (text.includes('.menu')) {
-            await sock.sendMessage(from, { text: '🌸 *NAEVIS MENU* 🌸\n\nSistemas listos para diseñar.' });
+        if (text === '.ping') {
+            await sock.sendMessage(from, { text: '✨ *Naevis Online* ✨\n\nJinni, ya te escucho.' });
         }
     });
 
