@@ -36,7 +36,7 @@ async function startNaevis() {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.creds, P({ level: 'silent' })),
         },
-        browser: ["Ubuntu", "Chrome", "20.0.04"]
+        browser: ["Naevis Bot", "Safari", "1.0.0"]
     });
 
     // --- LÓGICA DE VINCULACIÓN ---
