@@ -1,7 +1,7 @@
 {
   "name": "naevis-bot",
   "version": "1.0.0",
-  "description": "Bot privado de Jinni",
+  "description": "Bot personal de Jinni",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -10,10 +10,6 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
     "pino": "^8.19.0",
-    "@hapi/boom": "^10.0.1",
-    "link-preview-js": "^3.0.0"
-  },
-  "engines": {
-    "node": "20.x"
+    "@hapi/boom": "^10.0.1"
   }
 }
