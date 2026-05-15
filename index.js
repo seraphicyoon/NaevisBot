@@ -2,7 +2,8 @@ import {
     makeWASocket, 
     useMultiFileAuthState, 
     fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
+    makeCacheableSignalKeyStore,
+    DisconnectReason
 } from '@whiskeysockets/baileys';
 import P from 'pino';
 import { Boom } from '@hapi/boom';
@@ -19,71 +20,63 @@ async function startNaevis() {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.creds, P({ level: 'silent' })),
         },
-        browser: ["Naevis", "Chrome", "20.0.04"]
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    if (!sock.authState.creds.registered) {
-        const botNumber = process.env.NUMBER;
-        if (botNumber) {
-            setTimeout(async () => {
-                let code = await sock.requestPairingCode(botNumber);
-                console.log(`\n\n🌸 NAEVIS SYSTEM 🌸`);
-                console.log(`TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
-                console.log(`--------------------------\n\n`);
-            }, 3000);
-        }
-    }
+    // --- MANEJO DE CONEXIÓN Y PAIRING ---
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect } = update;
 
+        if (connection === 'close') {
+            const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('🔄 Conexión cerrada, reintentando:', shouldReconnect);
+            if (shouldReconnect) startNaevis();
+        } else if (connection === 'open') {
+            console.log('✅ Naevis conectada exitosamente');
+        }
+
+        // PEDIR CÓDIGO SOLO CUANDO ESTÉ LISTO
+        if (!sock.authState.creds.registered && connection === 'connecting') {
+            const botNumber = process.env.NUMBER;
+            if (botNumber) {
+                console.log(`🌸 NAEVIS: Preparando vinculación para ${botNumber}...`);
+                // Esperamos un poco a que el socket esté estable
+                setTimeout(async () => {
+                    try {
+                        let code = await sock.requestPairingCode(botNumber);
+                        console.log(`\n\n🌸 NAEVIS SYSTEM 🌸`);
+                        console.log(`TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
+                        console.log(`--------------------------\n\n`);
+                    } catch (error) {
+                        console.log('❌ Error al pedir pairing code:', error.message);
+                    }
+                }, 5000); // 5 segundos de espera para asegurar estabilidad
+            }
+        }
+    });
+
+    // --- MANEJO DE MENSAJES ---
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message || m.key.fromMe) return;
         
         const from = m.key.remoteJid;
-        // Limpiamos el texto: quitamos espacios y lo pasamos a minúsculas
         const text = (m.message.conversation || m.message.extendedTextMessage?.text || "").toLowerCase().trim();
         const senderNumber = from.split('@')[0];
         
-        // Log de ayuda: Esto te dirá en Railway quién escribe y qué puso
         console.log(`📩 Mensaje de [${senderNumber}]: ${text}`);
 
-        // Verificación de Dueña (compara si el número personal está incluido en la variable)
-        const isOwner = process.env.OWNER_NUMBER && senderNumber.includes(process.env.OWNER_NUMBER.replace(/\D/g, ''));
-
-        // --- COMANDOS ---
-
         if (text === '.ping') {
-            await sock.sendMessage(from, { text: '✨ *Naevis Online* ✨\n\nSistemas operando al 100%, Jinni.' });
+            await sock.sendMessage(from, { text: '✨ *Naevis Online* ✨\n\nOperando al 100%, Jinni.' });
         }
 
         if (text === '.menu') {
-            // Quitamos el bloqueo de isOwner por ahora para confirmar que responda
-            const menuTexto = `╭─── ✨ *NAEVIS MENU* ✨ ───
-│
-│  🌸 *Propietaria:* Jinni
-│  🎀 *Estado:* Activa
-│
-│  💻 *Comandos:*
-│  - .ping
-│  - .menu
-│
-╰──────────────────────────
-_Crescendo Studio_`;
-
+            const menuTexto = `╭─── ✨ *NAEVIS MENU* ✨ ───\n│\n│  🌸 *Dueña:* Jinni\n│  🎀 *Estado:* Activa\n│\n╰──────────────────────────`;
             await sock.sendMessage(from, { text: menuTexto });
-        }
-    });
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== 401;
-            if (shouldReconnect) startNaevis();
-        } else if (connection === 'open') {
-            console.log('✅ Naevis conectada exitosamente');
         }
     });
 
     sock.ev.on('creds.update', saveCreds);
 }
 
-startNaevis();
+startNaevis().catch(err => console.log("Error en arranque:", err));
