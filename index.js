@@ -9,23 +9,21 @@ import P from 'pino';
 import { Boom } from '@hapi/boom';
 import http from 'http';
 
-// --- MANTENER VIVO EL PROCESO (CORREGIDO PARA RAILWAY) ---
+// --- SERVIDOR PARA RAILWAY ---
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.write('Naevis is Active');
-    res.end();
-}).listen(port, '0.0.0.0', () => {
-    console.log(`📡 Servidor de salud activo en puerto: ${port}`);
-});
+    res.writeHead(200);
+    res.end('Naevis Active');
+}).listen(port, '0.0.0.0');
 
 process.on('uncaughtException', (err) => {
     if (err.message.includes('store.get')) return;
-    console.error('⚠️ Error interno:', err);
+    console.error('⚠️ Error:', err.message);
 });
 
 async function startNaevis() {
-    const { state, saveCreds } = await useMultiFileAuthState('sesion_nueva');
+    // Cambiamos el nombre de la sesión para forzar una nueva
+    const { state, saveCreds } = await useMultiFileAuthState('sesion_final_jinni');
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
@@ -36,13 +34,18 @@ async function startNaevis() {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.creds, P({ level: 'silent' })),
         },
-        browser: ["Naevis Bot", "Safari", "1.0.0"]
+        // Usamos una configuración de Safari en macOS que es muy estable para códigos
+        browser: ["Mac OS", "Safari", "17.0"]
     });
 
     // --- LÓGICA DE VINCULACIÓN ---
     if (!sock.authState.creds.registered) {
-        const botNumber = process.env.NUMBER;
+        let botNumber = process.env.NUMBER;
+        // Limpieza automática del número por si tiene espacios o símbolos
+        botNumber = botNumber.replace(/\D/g, '');
+
         if (botNumber) {
+            console.log(`🌸 Preparando código para: ${botNumber}`);
             setTimeout(async () => {
                 try {
                     let code = await sock.requestPairingCode(botNumber);
@@ -50,19 +53,19 @@ async function startNaevis() {
                     console.log(`TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
                     console.log(`--------------------------\n\n`);
                 } catch (e) {
-                    console.log("❌ Error al generar código:", e.message);
+                    console.log("❌ No se pudo generar el código. Reintentando...");
                 }
-            }, 5000);
+            }, 10000); // 10 segundos para asegurar que el socket esté listo
         }
     }
 
-    sock.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) startNaevis();
         } else if (connection === 'open') {
-            console.log('✅ NAEVIS ESTÁ VIVA Y CONECTADA');
+            console.log('✅ NAEVIS CONECTADA EXITOSAMENTE');
         }
     });
 
@@ -72,11 +75,9 @@ async function startNaevis() {
         const from = m.key.remoteJid;
         const body = m.message.conversation || m.message.extendedTextMessage?.text || "";
         const text = body.toLowerCase().trim();
-        
-        console.log(`📩 Recibido: ${text}`);
 
         if (text === '.ping') {
-            await sock.sendMessage(from, { text: '✨ *Naevis Online* ✨\n\nJinni, ya te escucho.' });
+            await sock.sendMessage(from, { text: '✨ *Naevis Online* ✨\n\nJinni, te escucho fuerte y claro.' });
         }
     });
 
