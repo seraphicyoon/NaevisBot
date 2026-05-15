@@ -25,7 +25,7 @@ process.on('uncaughtException', (err) => {
 });
 
 async function startNaevis() {
-    const { state, saveCreds } = await useMultiFileAuthState('naevis_session');
+    const { state, saveCreds } = await useMultiFileAuthState('sesion_nueva');
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
