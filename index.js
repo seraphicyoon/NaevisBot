@@ -7,14 +7,17 @@ import {
 } from '@whiskeysockets/baileys';
 import P from 'pino';
 import { Boom } from '@hapi/boom';
-import http from 'http'; // Para mantener vivo Railway
+import http from 'http';
 
-// --- MANTENER VIVO EL PROCESO ---
+// --- MANTENER VIVO EL PROCESO (CORREGIDO PARA RAILWAY) ---
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
-  res.write('Naevis is Active');
-  res.end();
-}).listen(port);
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.write('Naevis is Active');
+    res.end();
+}).listen(port, '0.0.0.0', () => {
+    console.log(`📡 Servidor de salud activo en puerto: ${port}`);
+});
 
 process.on('uncaughtException', (err) => {
     if (err.message.includes('store.get')) return;
@@ -35,6 +38,23 @@ async function startNaevis() {
         },
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
+
+    // --- LÓGICA DE VINCULACIÓN ---
+    if (!sock.authState.creds.registered) {
+        const botNumber = process.env.NUMBER;
+        if (botNumber) {
+            setTimeout(async () => {
+                try {
+                    let code = await sock.requestPairingCode(botNumber);
+                    console.log(`\n\n🌸 NAEVIS SYSTEM 🌸`);
+                    console.log(`TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
+                    console.log(`--------------------------\n\n`);
+                } catch (e) {
+                    console.log("❌ Error al generar código:", e.message);
+                }
+            }, 5000);
+        }
+    }
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
